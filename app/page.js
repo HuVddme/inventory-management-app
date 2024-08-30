@@ -3,6 +3,10 @@
 import { useState, useEffect } from 'react'
 import { Box, Stack, Typography, Button, Modal, TextField } from '@mui/material'
 import { firestore } from '@/app/firebase'
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { auth } from '@/app/firebase';
+import Login from '@/app/components/login';
+import TestFirebase from '@/app/components/TestFirebase';
 import {
   collection,
   doc,
@@ -33,23 +37,46 @@ export default function Home() {
   const [inventory, setInventory] = useState([])
   const [open, setOpen] = useState(false)
   const [itemName, setItemName] = useState('')
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   const handleOpen = () => setOpen(true)
   const handleClose = () => setOpen(false)
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
 
 
   const updateInventory = async () => {
     const snapshot = query(collection(firestore, 'inventory'))
     const docs = await getDocs(snapshot)
     const inventoryList = []
+    // const [user, setUser] = useState(null);
+    // const [loading, setLoading] = useState(true);
     docs.forEach((doc) => {
       inventoryList.push({ name: doc.id, ...doc.data() })
     })
     setInventory(inventoryList)
-  }
+  };
   
   useEffect(() => {
-    updateInventory()
-  }, [])
+    if (user) {
+      updateInventory();
+    }
+  }, [user]);
 
   const addItem = async (item) => {
     const docRef = doc(collection(firestore, 'inventory'), item)
@@ -76,6 +103,14 @@ export default function Home() {
       }
       await updateInventory()
       }
+    
+    if (loading) {
+      return <div>Loading...</div>; // or a spinner
+    }
+  
+    if (!user) {
+      return <Login />;
+    }
 
 
   return (
@@ -88,6 +123,10 @@ export default function Home() {
       alignItems={'center'}
       gap={2}
     >
+      <TestFirebase /> {/* Include this only if needed for debugging */}
+      <Button variant="contained" onClick={handleLogout}>
+        Logout
+      </Button>
       <Modal
         open={open}
         onClose={handleClose}
@@ -126,13 +165,13 @@ export default function Home() {
       <Box border={'1px solid #333'}>
         <Box
           width="800px"
-          height="100px"
+          height="50px"
           bgcolor={'#ADD8E6'}
           display={'flex'}
           justifyContent={'center'}
           alignItems={'center'}
         >
-          <Typography variant={'h2'} color={'#333'} textAlign={'center'}>
+          <Typography variant={'h3'} color={'#333'} textAlign={'center'}>
             Inventory Items
           </Typography>
         </Box>
